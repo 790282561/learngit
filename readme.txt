@@ -1,2 +1,2 @@
-Git is a distributed version control system.
-Git is free software distributed under the GPL.
+1.爬取2019《中国新说唱》所有歌词
+对歌词的韵脚进行数据分析
