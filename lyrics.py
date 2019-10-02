@@ -3,7 +3,11 @@ import lxml
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+import re
+import random
+from concurrent.futures.thread import ThreadPoolExecutor
 import time
+import os
 
 # 爬取目标url为 https://music.163.com/#/playlist?id=2844653116
 # 但是还是应该先考虑分析单个歌曲的页面状况
@@ -15,6 +19,7 @@ headers = {
 }
 
 
+# 获取“中国新说唱2019”全部歌单和歌名，并写入music_lists.csv
 def get_music_lists(lyrics_url, headers):
     music_list = requests.get(lyrics_url, headers=headers)
     if music_list.status_code == 200:
@@ -27,6 +32,34 @@ def get_music_lists(lyrics_url, headers):
                 f.write(id_list.get_text()[:-7] + ',')
 
 
+# 提供免费代理proxy列表
+def setting_proxies():
+    proxies_pool_temp = []
+    proxies_pool = []
+    proxy_url = 'http://www.89ip.cn/index_1.html'
+    re_proxy = re.compile('((25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))\.){3}(25[0-5]|2[0-4]\d|((1\d{2})|([1-9]?\d)))')
+    re_port = re.compile('\d{4,5}')
+    user_agent = {
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/71.0.3578.98 Safari/537.36'}
+    proxy_text = requests.get(proxy_url, headers=user_agent).text
+    proxy_soup = BeautifulSoup(proxy_text, 'lxml')
+    proxies = proxy_soup.select('tbody > tr > td')
+    for i in proxies:
+        j = re.search(re_proxy, i.text.replace('\t', '').replace('\n', ''))
+        k = re.search(re_port, i.text.replace('\t', '').replace('\n', ''))
+        if j != None:
+            proxies_pool_temp.append(j.group(0))
+        if k != None:
+            if k.group(0) != '2019':
+                proxies_pool_temp.append(':' + k.group(0))
+    for m, n in enumerate(proxies_pool_temp):
+        if '.' in n:
+            proxy = n + proxies_pool_temp[m + 1]
+            proxies_pool.append(proxy)
+    return proxies_pool
+
+
+# 提供需要爬取的歌曲url列表
 def read_music_lists():
     f = open('music_lists.csv', encoding='UTF-8')
     data = f.read()
@@ -43,27 +76,51 @@ def read_music_lists():
     return url_lists
 
 
-def get_music_lyrics():
-    one_lyric_url = 'https://music.163.com/song?id=1387615527'
+# 爬取歌词，并保存为相应歌名的txt文件
+def get_music_lyrics(url_list):
+    one_lyric_url = url_list
+    # proxy = proxies_pool[random.randint(0, len(proxies_pool))]
     chrome_options = Options()
     chrome_options.add_argument('--headless')
+    # chrome_options.add_argument('--proxy-server=http://' + proxy)
     browser = webdriver.Chrome(options=chrome_options)
 
-    time.sleep(5)
+    time.sleep(1)
     browser.get(one_lyric_url)
     browser.switch_to.frame(browser.find_element_by_id('g_iframe'))
-    browser.find_element_by_id('flag_ctrl').click()  # 对“展开”进行一次点击
+
+    #该处用try模块
+    target = browser.find_element_by_id('flag_ctrl')
+    browser.execute_script('arguments[0].scrollIntoView();', target)
+    target.click()  # 对“展开”进行一次点击
 
     music_lyrics_part1 = browser.find_element_by_id('lyric-content').text
     music_lyrics_part2 = browser.find_element_by_id('flag_more').text
     music_comment_count = browser.find_element_by_id('cnt_comment_count').text
     music_name = browser.find_element_by_class_name('f-ff2').text[:-7]
-    with open(music_name + '.txt', 'a', encoding='UTF-8') as f:
-        f.write('评论数' + music_comment_count + '\n')
-        f.write(music_lyrics_part1)
-        f.write(music_lyrics_part2)
+
+    if (music_name + '.txt') not in os.listdir('./lyrics'):
+        try:
+            with open('./lyrics/' + music_name + '.txt', 'a', encoding='UTF-8') as f:
+                f.write('评论数' + music_comment_count + '\n')
+                f.write(music_lyrics_part1)
+                f.write(music_lyrics_part2)
+                print('%s 爬取完成' % music_name)
+        except:
+            print(music_name + '未爬取')
+            pass
+    else:
+        print(music_name + '已爬取')
+    time.sleep(2)
+    browser.close()
 
 
-# get_music_lists(lyrics_url, headers)
-# read_music_lists()
-get_music_lyrics()
+def main():
+    # get_music_lists(lyrics_url, headers)
+    # proxies_pool = setting_proxies()
+    url_lists = read_music_lists()
+    for url_list in url_lists:
+        get_music_lyrics(url_list)
+
+
+main()
