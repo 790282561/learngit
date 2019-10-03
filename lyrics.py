@@ -65,15 +65,21 @@ def read_music_lists():
     data = f.read()
     f.close()
 
-    url_lists = []
-    name_lists = []
-    lists = data.split(',')
-    for i in range(len(lists) - 1):
-        if i % 2 == 0:
-            url_lists.append('https://music.163.com' + lists[i])
-        if i % 2 != 0:
-            name_lists.append(lists[i])
-    return url_lists
+    music_lists = []
+    for num, music_url in enumerate(data):
+        if '/song?id=' in music_url:
+            music_name = data[num + 1]
+            music_lists.append((music_url, music_name))
+
+    # url_lists = []
+    # name_lists = []
+    # lists = data.split(',')
+    # for i in range(len(lists) - 1):
+    #     if i % 2 == 0:
+    #         url_lists.append('https://music.163.com' + lists[i])
+    #     if i % 2 != 0:
+    #         name_lists.append(lists[i])
+    # return [url_lists, name_lists]
 
 
 # 爬取歌词，并保存为相应歌名的txt文件
@@ -89,10 +95,12 @@ def get_music_lyrics(url_list):
     browser.get(one_lyric_url)
     browser.switch_to.frame(browser.find_element_by_id('g_iframe'))
 
-    #该处用try模块
-    target = browser.find_element_by_id('flag_ctrl')
-    browser.execute_script('arguments[0].scrollIntoView();', target)
-    target.click()  # 对“展开”进行一次点击
+    try:
+        target = browser.find_element_by_id('flag_ctrl')
+        browser.execute_script('arguments[0].scrollIntoView();', target)
+        target.click()  # 对“展开”进行一次点击
+    except:
+        pass
 
     music_lyrics_part1 = browser.find_element_by_id('lyric-content').text
     music_lyrics_part2 = browser.find_element_by_id('flag_more').text
@@ -118,9 +126,23 @@ def get_music_lyrics(url_list):
 def main():
     # get_music_lists(lyrics_url, headers)
     # proxies_pool = setting_proxies()
-    url_lists = read_music_lists()
+    url_lists = read_music_lists()[0]
+    name_lists = read_music_lists()[1]
     for url_list in url_lists:
         get_music_lyrics(url_list)
 
+    for music_name in name_lists:
+        if (music_name + '.txt') not in os.listdir('./lyrics'):
+            try:
+                with open('./lyrics/' + music_name + '.txt', 'a', encoding='UTF-8') as f:
+                    f.write('评论数' + music_comment_count + '\n')
+                    f.write(music_lyrics_part1)
+                    f.write(music_lyrics_part2)
+                    print('%s 爬取完成' % music_name)
+            except:
+                print(music_name + '未爬取')
+                pass
+        else:
+            print(music_name + '已爬取')
 
 main()
