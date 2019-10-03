@@ -62,7 +62,7 @@ def setting_proxies():
 # 提供需要爬取的歌曲url列表
 def read_music_lists():
     f = open('music_lists.csv', encoding='UTF-8')
-    data = f.read()
+    data = f.read().split(',')
     f.close()
 
     music_lists = []
@@ -71,6 +71,7 @@ def read_music_lists():
             music_name = data[num + 1]
             music_lists.append((music_url, music_name))
 
+    return music_lists
     # url_lists = []
     # name_lists = []
     # lists = data.split(',')
@@ -95,6 +96,7 @@ def get_music_lyrics(url_list):
     browser.get(one_lyric_url)
     browser.switch_to.frame(browser.find_element_by_id('g_iframe'))
 
+
     try:
         target = browser.find_element_by_id('flag_ctrl')
         browser.execute_script('arguments[0].scrollIntoView();', target)
@@ -103,22 +105,19 @@ def get_music_lyrics(url_list):
         pass
 
     music_lyrics_part1 = browser.find_element_by_id('lyric-content').text
-    music_lyrics_part2 = browser.find_element_by_id('flag_more').text
     music_comment_count = browser.find_element_by_id('cnt_comment_count').text
     music_name = browser.find_element_by_class_name('f-ff2').text[:-7]
-
-    if (music_name + '.txt') not in os.listdir('./lyrics'):
-        try:
-            with open('./lyrics/' + music_name + '.txt', 'a', encoding='UTF-8') as f:
-                f.write('评论数' + music_comment_count + '\n')
-                f.write(music_lyrics_part1)
-                f.write(music_lyrics_part2)
-                print('%s 爬取完成' % music_name)
-        except:
-            print(music_name + '未爬取')
-            pass
-    else:
-        print(music_name + '已爬取')
+    if music_name == '':
+        music_name = browser.find_element_by_class_name('f-ff2').text
+    if '/' in music_name:
+        music_name = music_name.replace('/', '_')
+    try:
+        with open('./lyrics/' + music_name + '.txt', 'a', encoding='UTF-8') as f:
+            f.write('评论数' + music_comment_count + '\n')
+            f.write(music_lyrics_part1)
+            print('%s 爬取完成' % music_name)
+    except:
+        print(music_name + '未爬取')
     time.sleep(2)
     browser.close()
 
@@ -126,23 +125,13 @@ def get_music_lyrics(url_list):
 def main():
     # get_music_lists(lyrics_url, headers)
     # proxies_pool = setting_proxies()
-    url_lists = read_music_lists()[0]
-    name_lists = read_music_lists()[1]
-    for url_list in url_lists:
-        get_music_lyrics(url_list)
-
-    for music_name in name_lists:
-        if (music_name + '.txt') not in os.listdir('./lyrics'):
-            try:
-                with open('./lyrics/' + music_name + '.txt', 'a', encoding='UTF-8') as f:
-                    f.write('评论数' + music_comment_count + '\n')
-                    f.write(music_lyrics_part1)
-                    f.write(music_lyrics_part2)
-                    print('%s 爬取完成' % music_name)
-            except:
-                print(music_name + '未爬取')
-                pass
+    music_lists = read_music_lists()
+    for one_music in music_lists:
+        if (one_music[1] + '.txt') not in os.listdir('./lyrics'):
+            get_music_lyrics('https://music.163.com' + one_music[0])
         else:
-            print(music_name + '已爬取')
+            pass
+            #print(one_music[1] + ' 这首歌已经爬取过了')
+
 
 main()
